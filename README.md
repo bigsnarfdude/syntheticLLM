@@ -67,6 +67,16 @@ raw/conversations.csv
 → processed/with_cot/... 
 → processed/with_rewards/... 
 → training/cot_training/...
+
+
+# Generate CoT data
+python src/orchestrator.py --input data/raw/conversations.jsonl --output data/processed/with_cot/latest.parquet --steps cot
+
+# Calculate rewards from CoT data
+python src/orchestrator.py --input data/processed/with_cot/latest.parquet --output data/processed/with_rewards/latest.parquet --steps rewards
+
+# Full pipeline (CoT → Rewards → Augment)
+python src/orchestrator.py --input data/raw/conversations.jsonl --output data/training/final.parquet --steps cot rewards augment
 ```
 
 **1. Capture Conversations**
