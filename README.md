@@ -109,8 +109,10 @@ python src/orchestrator.py \
    --steps [cot|rewards|augment]
    ```
 
-## Maintenance
+## TODO
+Intent classification
+CoT pattern extraction
+Response quality analysis
+Dialogue flow modeling
 
-- **Versioning**: Manually rename files with dates/versions
-- **Cleanup**: Old files in `processed/` can be archived
-- **Monitoring**: Check `data/models/ollama/` for model updates
+
