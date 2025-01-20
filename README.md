@@ -1,135 +1,98 @@
+I'll update the README.md sections based on the current project structure and files. Here's a revised version:
+
 # syntheticLLM
 
-
-A system for capturing chat conversations and processing them into training data for Chain-of-Thought (CoT) and Reinforcement Learning (RL) models.
+A system for capturing and processing chat conversations into training data for Chain-of-Thought (CoT) and Reinforcement Learning (RL) models.
 
 ## Project Structure
 
 ```bash
 syntheticLLM/
 ├── data/
-│   ├── models/              # Pre-trained models
-│   ├── processed/
-│   │   ├── with_cot/       # Chain of thought data
-│   │   └── with_rewards/   # Reward-annotated data
 │   ├── raw/                # Raw conversation data
+│   ├── processed/          # Intermediate processed data
 │   └── training/           # Final training datasets
-├── src/
-│   ├── orchestrator.py
-│   ├── pipeline/
-│   │   ├── cot_generator.py
-│   │   ├── reward_calculator.py
-│   │   ├── augmentation_engine.py
-│   │   └── enhanced_data_processor.py
-│   └── utils/
-│       ├── data_utils.py
-│       └── exporters/
-│           ├── cot_exporter.py
-│           └── training_data_exporter.py
-├── main.py
-└── requirements.txt
+├── pipelines/              # Data processing modules
+│   ├── cot_generator.py
+│   ├── reward_calculator.py
+│   ├── augmentation_engine.py
+│   └── enhanced_data_processor.py
+└── utils/
+    ├── data_utils.py
+    ├── chat_writer.py
+    └── training_data_export.py
 ```
 
 ## Key Components
 
-### Data Flow
-1. **Raw Data**: Collected from chat app in `data/raw/conversations.csv`
-2. **Processing**: Sequential enhancement through pipeline steps
-3. **Training Data**: Final datasets in `data/training/`
-
-### Core Files
-| File | Purpose |
-|------|---------|
-| `src/conversation_logger.py` | Collects raw chat data |
-| `src/orchestrator.py` | Coordinates processing steps |
-| `src/pipelines/*.py` | Individual processing modules |
+| Component | Purpose |
+|----------|---------|
+| `chat_writer.py` | Logs raw conversations |
+| `orchestrator.py` | Coordinates data processing pipeline |
+| `cot_generator.py` | Generates Chain-of-Thought steps |
+| `reward_calculator.py` | Calculates conversation rewards |
+| `augmentation_engine.py` | Creates data augmentations |
 
 ## Setup
 
 1. **Install Requirements**
 ```bash
-pip install pandas requests sentence-transformers transformers nlpaug
+pip install pandas torch transformers sentence-transformers
 ```
 
-2. **Set Up Ollama (for local CoT generation)**
+2. **Prepare Data Processing**
 ```bash
-# Install Ollama
-curl https://ollama.ai/install.sh | sh
-
-# Download models
-ollama pull llama2
+# Recommended workflow
+python orchestrator.py \
+  --input data/raw/conversations.jsonl \
+  --output data/training/final_dataset.parquet \
+  --steps cot rewards augment
 ```
 
-## Usage
+## Detailed Processing Steps
 
-```
-raw/conversations.csv 
-→ processed/with_cot/... 
-→ processed/with_rewards/... 
-→ training/cot_training/...
-
-
-# Generate CoT data
-python src/orchestrator.py --input data/raw/conversations.jsonl --output data/processed/with_cot/latest.parquet --steps cot
-
-# Calculate rewards from CoT data
-python src/orchestrator.py --input data/processed/with_cot/latest.parquet --output data/processed/with_rewards/latest.parquet --steps rewards
-
-# Full pipeline (CoT → Rewards → Augment)
-python src/orchestrator.py --input data/raw/conversations.jsonl --output data/training/final.parquet --steps cot rewards augment
-```
-
-**1. Capture Conversations**
+### 1. Capture Conversations
 ```python
-from src.conversation_logger import ConversationLogger
+from utils.chat_writer import ConversationLogger
 
 logger = ConversationLogger()
-logger.save_conversation("What's AI?", "Artificial intelligence is...")
+logger.save_conversation("User query", "Assistant response")
 ```
 
-**2. Process Data**
-```bash
-# Generate Chain-of-Thought steps
-python src/orchestrator.py \
-  --input data/raw/conversations.csv \
-  --output data/processed/with_cot/latest.parquet \
-  --steps cot
-
-# Add RL rewards
-python src/orchestrator.py \
-  --input data/processed/with_cot/latest.parquet \
-  --output data/processed/with_rewards/latest.parquet \
-  --steps rewards
+### 2. Process Conversations
+```python
+# Apply processing pipeline
+python orchestrator.py \
+  --input data/raw/conversations.jsonl \
+  --output data/processed/enhanced_conversations.parquet \
+  --steps cot rewards
 ```
 
-**3. Export Training Data**
-```bash
-# Create final dataset
-python src/orchestrator.py \
-  --input data/processed/with_rewards/latest.parquet \
-  --output data/training/cot_rl_dataset.parquet \
+### 3. Export Training Data
+```python
+# Generate final training dataset
+python orchestrator.py \
+  --input data/processed/enhanced_conversations.parquet \
+  --output data/training/final_dataset.parquet \
   --steps augment
 ```
 
 ## Customization
 
-1. **Change Paths**  
-   Modify `orchestrator.py` input/output paths
+- Modify pipeline steps in `orchestrator.py`
+- Adjust model configurations in respective pipeline files
+- Change data paths as needed
 
-2. **Use Different Models**  
-   Edit `CoTConfig` in `pipelines/cot_generation.py`
+## Features
 
-3. **Adjust Processing**  
-   Modify pipeline steps in `orchestrator.py` arguments:
-   ```python
-   --steps [cot|rewards|augment]
-   ```
+- Conversation logging
+- Chain-of-Thought generation
+- Reward calculation
+- Data augmentation
+- Training data export
 
-## TODO
-Intent classification
-CoT pattern extraction
-Response quality analysis
-Dialogue flow modeling
+## Planned Improvements
 
-https://huggingface.co/datasets/OpenAssistant/oasst1
-
+- Advanced intent classification
+- Dialogue flow modeling
+- Response quality analysis
