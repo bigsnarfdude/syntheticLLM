@@ -56,6 +56,13 @@ ollama pull llama2
 
 ## Usage
 
+```
+raw/conversations.csv 
+→ processed/with_cot/... 
+→ processed/with_rewards/... 
+→ training/cot_training/...
+```
+
 **1. Capture Conversations**
 ```python
 from src.conversation_logger import ConversationLogger
