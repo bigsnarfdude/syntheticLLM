@@ -1,5 +1,3 @@
-I'll update the README.md sections based on the current project structure and files. Here's a revised version:
-
 # syntheticLLM
 
 A system for capturing and processing chat conversations into training data for Chain-of-Thought (CoT) and Reinforcement Learning (RL) models.
