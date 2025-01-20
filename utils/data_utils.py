@@ -22,6 +22,8 @@ def save_data(df: pd.DataFrame, file_path: str):
         df.to_csv(file_path, index=False)
     elif path.suffix == '.parquet':
         df.to_parquet(file_path)
+    elif path.suffix == '.jsonl':
+        df.to_json(file_path, orient='records', lines=True)
     else:
         raise ValueError(f"Unsupported file format: {path.suffix}")
     logger.info(f"Saved processed data to {file_path}")

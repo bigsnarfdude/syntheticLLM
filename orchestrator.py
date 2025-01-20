@@ -2,9 +2,9 @@ import argparse
 import json
 import pandas as pd
 from src.pipelines.COT_generator import CoTGenerator, CoTConfig
-from .pipelines.reward_calculator import RewardCalculator
-from .pipelines.augmentation_engine import AugmentationEngine
-from .utils.data_utils import load_data, save_data
+from src.pipelines.reward_calculator import RewardCalculator
+from src.pipelines.augmentation_engine import OllamaAugmentationEngine
+from utils.data_utils import load_data, save_data
 
 def parse_jsonl(file_path):
     """
@@ -78,7 +78,7 @@ def main():
         df = reward_engine.process_batch(df)
     
     if 'augment' in args.steps:
-        augment_engine = AugmentationEngine()
+        augment_engine = OllamaAugmentationEngine()
         df = augment_engine.process_batch(df)
     
     # Save results
