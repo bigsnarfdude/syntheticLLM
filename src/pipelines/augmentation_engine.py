@@ -5,7 +5,7 @@ import logging
 
 class OllamaAugmentationEngine:
     def __init__(self, 
-                 model="llama2",
+                 model="phi4:lastest",
                  host="http://localhost:11434",
                  temperature=0.7,
                  max_tokens=256):
