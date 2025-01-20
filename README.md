@@ -7,21 +7,23 @@ A system for capturing chat conversations and processing them into training data
 
 ```bash
 .
-├── LICENSE                     # The license file for the project, specifying usage and distribution terms.
-├── README.md                   # The main documentation file for the repository, providing an overview of the project.
+├── LICENSE
+├── README.md
 ├── chat_writer.py              # A script for saving chat input/output text.
-├── data                        
-│   ├── models                  # Pre-trained LLM for generating synthetic data.
-│   ├── processed               # Processed chat datasets ready for use in sythetic data generation.
-│   ├── raw                     # Raw, unprocessed chats.
-│   └── training                # RL synthetic training data.
+├── data
+│   ├── models                  # Pre-trained LLM for generating synthetic data.
+│   ├── processed               # Processed chat datasets ready for use in sythetic data generation.
+│   ├── raw                     # Raw, unprocessed chats.
+│   └── training                # RL synthetic training data.
 ├── main.py                     # The main entry point script for running the project.
-└── src                         
-    └── pipeline                
-        ├── COT_generator.py    # Script for generating Chain-of-Thought (COT) reasoning data.
-        ├── augmentation_engine.py  # Pipeline-specific augmentation logic and generated data.
-        ├── loader.py           # Script for loading datasets into the pipeline.
-        └── reward_calculator.py # Script for calculating rewards, reinforcement learning and evaluation.
+├── src
+│   └── pipeline
+│       ├── COT_generator.py    # Script for generating Chain-of-Thought (COT) reasoning data.
+│       ├── augmentation_engine.py  # Pipeline-specific augmentation logic and generated data.
+│       └── reward_calculator.py # Script for calculating rewards, reinforcement learning and evaluation.
+└── utils
+    └── data_utils.py
+
 ```
 
 ## Key Components
