@@ -1,12 +1,49 @@
 import argparse
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from tqdm import tqdm
 import pandas as pd
 import requests
+
+@dataclass
+class ContentLabels:
+    relevance: float
+    accuracy: float
+    completeness: float
+    clarity: float
+    depth: float
+
+@dataclass
+class ToneLabels:
+    sentiment: float
+    toxicity: float
+    sarcasm: float
+    humor: float
+    formality: float
+
+@dataclass
+class SafetyLabels:
+    hate_speech: float
+    threat: float
+    misinformation: float
+    manipulation: float
+    pii: float
+
+@dataclass
+class StyleLabels:
+    creativity: float
+    engagement: float
+    eloquence: float
+
+@dataclass
+class TextLabels:
+    content: ContentLabels
+    tone: ToneLabels
+    safety: SafetyLabels
+    style: StyleLabels
 
 @dataclass
 class PipelineConfig:
@@ -108,9 +145,143 @@ Paraphrased Version:"""
         
         return augmented_df
 
+class LLMLabeler(PipelineComponent):
+    def __init__(
+        self,
+        model: str = "phi4:latest",
+        host: str = "http://localhost:11434",
+        temperature: float = 0.3
+    ):
+        self.model = model
+        self.host = host
+        self.temperature = temperature
+        self.logger = logging.getLogger(__name__)
+        
+        self.prompt_template = """Analyze the following text and provide scores for each category on specified scales.
+Be strict and objective in scoring. Provide brief justification for each score.
+
+Text: {text}
+
+Score format (each on new line):
+category: score [scale] - brief justification
+
+Categories to score:
+Content:
+- Relevance (0-1)
+- Accuracy (0-1) 
+- Completeness (0-1)
+- Clarity (0-1)
+- Depth (0-1)
+
+Tone:
+- Sentiment (-1 to 1)
+- Toxicity (0-1)
+- Sarcasm (0-1)
+- Humor (0-1)
+- Formality (0-1)
+
+Safety:
+- Hate speech (0-1)
+- Threat level (0-1)
+- Misinformation (0-1)
+- Manipulation (0-1)
+- PII exposure (0-1)
+
+Style:
+- Creativity (0-1)
+- Engagement (0-1)
+- Eloquence (0-1)"""
+
+    def _analyze_text(self, text: str) -> Optional[TextLabels]:
+        try:
+            response = requests.post(
+                f"{self.host}/api/generate",
+                json={
+                    "model": self.model,
+                    "prompt": self.prompt_template.format(text=text),
+                    "options": {"temperature": self.temperature}
+                },
+                timeout=30
+            )
+            response.raise_for_status()
+            
+            full_response = "".join(
+                chunk.get('response', '') 
+                for chunk in (json.loads(line) for line in response.iter_lines() if line)
+                if 'response' in chunk
+            ).strip()
+            
+            scores = self._parse_llm_response(full_response)
+            return TextLabels(**scores)
+            
+        except Exception as e:
+            self.logger.error(f"Text analysis error: {e}")
+            return None
+
+    def _parse_llm_response(self, response_text: str) -> Dict:
+        scores = {
+            'content': {},
+            'tone': {},
+            'safety': {},
+            'style': {}
+        }
+        
+        current_category = None
+        for line in response_text.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+                
+            if line.lower() in ['content:', 'tone:', 'safety:', 'style:']:
+                current_category = line.lower().rstrip(':')
+                continue
+                
+            if current_category and ':' in line:
+                label, rest = line.split(':', 1)
+                label = label.strip().lower().replace(' ', '_')
+                
+                # Extract score from the format "score [scale] - justification"
+                score_part = rest.split('-')[0].strip()
+                score = float(score_part.split('[')[0].strip())
+                
+                if current_category in scores:
+                    scores[current_category][label] = score
+        
+        return {
+            'content': ContentLabels(**scores['content']),
+            'tone': ToneLabels(**scores['tone']),
+            'safety': SafetyLabels(**scores['safety']),
+            'style': StyleLabels(**scores['style'])
+        }
+
+    def process_single(self, row: pd.Series) -> pd.Series:
+        if row.get('text'):
+            labels = self._analyze_text(row['text'])
+            if labels:
+                row['content_labels'] = asdict(labels.content)
+                row['tone_labels'] = asdict(labels.tone)
+                row['safety_labels'] = asdict(labels.safety)
+                row['style_labels'] = asdict(labels.style)
+        return row
+
+    def process_batch(self, df: pd.DataFrame) -> pd.DataFrame:
+        if df is None or df.empty:
+            self.logger.info("Empty DataFrame. Skipping labeling.")
+            return df
+        
+        self.logger.info(f"Starting labeling for {len(df)} rows")
+        
+        processed_df = df.copy()
+        for idx, row in tqdm(df.iterrows(), total=len(df), desc="Labeling data"):
+            processed_df.loc[idx] = self.process_single(row)
+            
+        self.logger.info("Labeling complete")
+        return processed_df
+
 class DataPipeline:
     VALID_COMPONENTS: Dict[str, Any] = {
-        'augment': OllamaAugmentationEngine
+        'augment': OllamaAugmentationEngine,
+        'label': LLMLabeler
     }
 
     def __init__(self, config: PipelineConfig):
@@ -170,10 +341,10 @@ class DataPipeline:
             raise
 
 def parse_args() -> PipelineConfig:
-    parser = argparse.ArgumentParser(description="Data augmentation pipeline")
+    parser = argparse.ArgumentParser(description="Data augmentation and labeling pipeline")
     parser.add_argument('--input', type=str, required=True, help="Input JSONL file path")
     parser.add_argument('--output', type=str, required=True, help="Output file path")
-    parser.add_argument('--steps', nargs='+', default=['augment'],
+    parser.add_argument('--steps', nargs='+', default=['augment', 'label'],
                        help="Processing steps to apply")
     parser.add_argument('--log-level', type=str, default="INFO",
                        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
