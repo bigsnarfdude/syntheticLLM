@@ -20,7 +20,20 @@ class CoTConfig:
 class CoTGenerator:
     def __init__(self, config: CoTConfig = CoTConfig()):
         self.config = config
-        self.cot_prompt = """Generate concise reasoning steps that connect this query to the response:
+        self.cot_prompt = """Generate the reasoning steps that connect the query to the response.
+Follow this structured format:
+
+Example:
+Query: What is photosynthesis?
+Response: Photosynthesis is the process where plants convert sunlight into energy, using water and CO2 to produce glucose and oxygen.
+
+Chain of Thought:
+1. Identifies photosynthesis as a plant process
+2. Notes input elements: sunlight, water, CO2
+3. Explains conversion of inputs to energy
+4. Specifies outputs: glucose and oxygen
+
+Now generate for:
 Query: {query}
 Response: {response}
 
@@ -69,13 +82,11 @@ Chain of Thought:
             return ""
 
     def process_batch(self, df: pd.DataFrame) -> pd.DataFrame:
-        # Get unique conversation threads
         tree_ids = df['message_tree_id'].unique()
         total_conversations = len(tree_ids)
         
         logger.info(f"Processing {total_conversations} conversations...")
         
-        # Initialize progress bar for conversation threads
         for tree_id in tqdm(tree_ids, desc="Generating Chain-of-Thought", unit="conversation"):
             group = df[df['message_tree_id'] == tree_id]
             prompter_msg = group[group['role'] == 'prompter']['text'].iloc[0] if any(group['role'] == 'prompter') else ''
@@ -83,7 +94,6 @@ Chain of Thought:
             
             if prompter_msg and assistant_msg:
                 cot = self.generate_cot(prompter_msg, assistant_msg)
-                # Add CoT to all messages in the conversation
                 df.loc[df['message_tree_id'] == tree_id, 'cot_steps'] = cot
         
         logger.info("Chain-of-Thought generation completed")
