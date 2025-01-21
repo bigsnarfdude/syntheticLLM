@@ -1,6 +1,6 @@
-# pipelines/cot_generation.py
 import pandas as pd
 import requests
+import json
 from typing import Dict
 from dataclasses import dataclass
 import logging
@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class CoTConfig:
-    model: str = "llama2"  # Default local model
+    model: str = "phi4:latest"
     temperature: float = 0.7
     max_tokens: int = 256
     ollama_host: str = "http://localhost:11434"
@@ -42,34 +42,43 @@ Chain of Thought:
                         "temperature": self.config.temperature,
                         "num_predict": self.config.max_tokens
                     }
-                }
+                },
+                stream=True  # Enable streaming response
             )
             response.raise_for_status()
-            return self._parse_ollama_response(response.json())
+            
+            # Process streaming response
+            full_response = ""
+            for line in response.iter_lines():
+                if line:
+                    try:
+                        json_response = json.loads(line)
+                        if 'message' in json_response:
+                            content = json_response['message'].get('content', '')
+                            if content:
+                                full_response += content
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"Failed to parse JSON line: {e}")
+                        continue
+                        
+            return full_response.strip()
             
         except Exception as e:
             logger.error(f"Ollama API error: {e}")
             return ""
 
-    def _parse_ollama_response(self, response_data: Dict) -> str:
-        """Extract and format the CoT steps from Ollama response"""
-        try:
-            full_response = "".join(
-                chunk.get("message", {}).get("content", "")
-                for chunk in response_data.get("response", [])
-            )
-            return full_response.strip()
-        except Exception as e:
-            logger.error(f"Failed to parse Ollama response: {e}")
-            return ""
-
     def process_batch(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Add CoT column to dataframe (same as before)"""
-        df['cot_steps'] = df.apply(
-            lambda row: self.generate_cot(
-                row['Content'] if row['Role'] == 'user' else '',
-                row['Content'] if row['Role'] == 'assistant' else ''
-            ),
-            axis=1
-        )
+        """Add CoT column to dataframe"""
+        # Group messages by message_tree_id to pair prompts with responses
+        conversations = []
+        for tree_id, group in df.groupby('message_tree_id'):
+            prompter_msg = group[group['role'] == 'prompter']['text'].iloc[0] if any(group['role'] == 'prompter') else ''
+            assistant_msg = group[group['role'] == 'assistant']['text'].iloc[0] if any(group['role'] == 'assistant') else ''
+            
+            if prompter_msg and assistant_msg:
+                cot = self.generate_cot(prompter_msg, assistant_msg)
+                # Add CoT to both messages in the conversation
+                for idx in group.index:
+                    df.at[idx, 'cot_steps'] = cot
+        
         return df
