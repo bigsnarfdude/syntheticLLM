@@ -1,9 +1,11 @@
+# pipelines/cot_generation.py
 import pandas as pd
 import requests
 import json
-from typing import Dict
+from typing import Dict, Optional
 from dataclasses import dataclass
 import logging
+from tqdm.auto import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +15,7 @@ class CoTConfig:
     temperature: float = 0.7
     max_tokens: int = 256
     ollama_host: str = "http://localhost:11434"
+    batch_size: int = 10
 
 class CoTGenerator:
     def __init__(self, config: CoTConfig = CoTConfig()):
@@ -26,7 +29,6 @@ Chain of Thought:
         
     def generate_cot(self, query: str, response: str) -> str:
         try:
-            # Format for Ollama API
             response = requests.post(
                 f"{self.config.ollama_host}/api/chat",
                 json={
@@ -43,11 +45,10 @@ Chain of Thought:
                         "num_predict": self.config.max_tokens
                     }
                 },
-                stream=True  # Enable streaming response
+                stream=True
             )
             response.raise_for_status()
             
-            # Process streaming response
             full_response = ""
             for line in response.iter_lines():
                 if line:
@@ -68,17 +69,22 @@ Chain of Thought:
             return ""
 
     def process_batch(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Add CoT column to dataframe"""
-        # Group messages by message_tree_id to pair prompts with responses
-        conversations = []
-        for tree_id, group in df.groupby('message_tree_id'):
+        # Get unique conversation threads
+        tree_ids = df['message_tree_id'].unique()
+        total_conversations = len(tree_ids)
+        
+        logger.info(f"Processing {total_conversations} conversations...")
+        
+        # Initialize progress bar for conversation threads
+        for tree_id in tqdm(tree_ids, desc="Generating Chain-of-Thought", unit="conversation"):
+            group = df[df['message_tree_id'] == tree_id]
             prompter_msg = group[group['role'] == 'prompter']['text'].iloc[0] if any(group['role'] == 'prompter') else ''
             assistant_msg = group[group['role'] == 'assistant']['text'].iloc[0] if any(group['role'] == 'assistant') else ''
             
             if prompter_msg and assistant_msg:
                 cot = self.generate_cot(prompter_msg, assistant_msg)
-                # Add CoT to both messages in the conversation
-                for idx in group.index:
-                    df.at[idx, 'cot_steps'] = cot
+                # Add CoT to all messages in the conversation
+                df.loc[df['message_tree_id'] == tree_id, 'cot_steps'] = cot
         
+        logger.info("Chain-of-Thought generation completed")
         return df
